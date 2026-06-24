@@ -1,0 +1,381 @@
+@import 'katex/dist/katex.min.css';
+
+:root {
+  --bg-deep: #04050a;
+  --bg-panel: rgba(8, 12, 22, 0.85);
+  --bg-panel-edge: rgba(28, 40, 64, 0.55);
+  --text-fg: #cfd6e0;
+  --text-dim: #5d6878;
+  --text-bright: #eef2f8;
+  --surface-accent: #9be7ff;
+  --surface-accent-mid: #1e90c8;
+  --grid-line: rgba(60, 80, 110, 0.16);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text-fg);
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: 320px 1fr 280px;
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    "left  view  right"
+    "left  ctrls right";
+  gap: 14px;
+  padding: 14px;
+}
+
+#left-panel  { grid-area: left;  overflow-y: auto; }
+#right-panel { grid-area: right; overflow-y: auto; }
+#viewport    { grid-area: view;  position: relative; min-height: 0; }
+#controls    { grid-area: ctrls; }
+
+/* ── Background grid overlay ─────────────────────────────────────────── */
+#app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#app > * { position: relative; z-index: 1; }
+
+/* ── Panels ─────────────────────────────────────────────────────────── */
+#left-panel,
+#right-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-panel-edge);
+  border-radius: 6px;
+  padding: 18px 18px 22px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4) inset,
+              0 8px 30px rgba(0,0,0,0.45);
+}
+
+.panel-section { margin-bottom: 22px; }
+.panel-section:last-child { margin-bottom: 0; }
+
+.panel-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2.6px;
+  color: var(--surface-accent);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+/* ── Left panel: deck header ────────────────────────────────────────── */
+.deck-title {
+  margin: 0 0 4px 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-bright);
+}
+.deck-sub {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.classification {
+  font-size: 12.5px;
+  color: var(--text-fg);
+  margin: 0;
+}
+
+.equation {
+  background: rgba(255,255,255,0.02);
+  padding: 12px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.04);
+  font-size: 13px;
+  overflow-x: auto;
+}
+.equation .katex { color: var(--text-bright); }
+
+.metrics {
+  margin: 0;
+  padding: 0 0 0 18px;
+  list-style: none;
+}
+.metrics li {
+  position: relative;
+  padding: 3px 0;
+  color: var(--text-fg);
+}
+.metrics li::before {
+  content: '';
+  position: absolute;
+  left: -14px; top: 11px;
+  width: 6px; height: 6px;
+  background: var(--surface-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--surface-accent);
+}
+
+.rim-bar {
+  height: 6px;
+  border-radius: 3px;
+  margin-bottom: 6px;
+}
+.rim-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  letter-spacing: 1.8px;
+  color: var(--text-dim);
+}
+
+/* ── Right panel: coordinates + selector ───────────────────────────── */
+.coord-row {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--text-fg);
+}
+.coord-row span:first-child { color: var(--text-dim); }
+.coord-row span:last-child  { color: var(--text-bright); }
+
+.selector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selector-group-header {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  margin: 12px 0 4px;
+  text-transform: uppercase;
+}
+
+.surface-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 4px;
+  color: var(--text-fg);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: border-color 200ms, background 200ms;
+}
+.surface-card:hover {
+  border-color: var(--card-edge);
+  background: rgba(255,255,255,0.04);
+}
+.surface-card.active {
+  border-color: var(--card-edge);
+  background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  box-shadow: 0 0 0 1px var(--card-mid), 0 0 16px var(--card-mid);
+}
+
+.card-thumb {
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background:
+    radial-gradient(circle at 35% 35%, var(--card-edge) 0%, var(--card-mid) 45%, var(--card-core) 100%);
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+}
+
+.card-body { flex: 1; min-width: 0; }
+.card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-iso {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* ── Controls ────────────────────────────────────────────────────────── */
+#controls {
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-panel-edge);
+  border-radius: 6px;
+  padding: 12px 16px;
+  backdrop-filter: blur(8px);
+}
+
+.ctrl-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-end;
+}
+.ctrl-row + .ctrl-row { margin-top: 10px; }
+
+.ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 180px;
+  min-width: 140px;
+}
+.ctrl-label {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.ctrl-label output {
+  font-variant-numeric: tabular-nums;
+  color: var(--surface-accent);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+.ctrl-toggle { flex: 0 0 auto; min-width: 140px; }
+.ctrl-param { flex: 1 1 140px; }
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-accent);
+  cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.6);
+  box-shadow: 0 0 6px var(--surface-accent);
+}
+input[type=range]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-accent);
+  cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.6);
+}
+
+select {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-bright);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+/* ── Viewport (canvas) ──────────────────────────────────────────────── */
+#viewport {
+  border-radius: 6px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at center, #0a1020 0%, #04050a 80%);
+  border: 1px solid var(--bg-panel-edge);
+}
+#viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Loading state ──────────────────────────────────────────────────── */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--surface-accent);
+  font-size: 11px;
+  letter-spacing: 3px;
+  pointer-events: none;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 200ms;
+  background: rgba(4,5,10,0.4);
+}
+.loading-overlay.active { opacity: 1; }
+
+/* Indeterminate progress bar — shows for ALL compute states (surface switch
+   and slider changes alike). Positioned at the top edge of the viewport. */
+#compute-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 24px;            /* enough room for bar + label */
+  pointer-events: none;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 180ms;
+}
+#compute-bar.active { opacity: 1; }
+
+/* 2 px neon track that slides left → right indefinitely */
+#compute-bar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -60%;
+  width: 60%;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--surface-accent-mid) 30%,
+    var(--surface-accent)     55%,
+    var(--surface-accent-mid) 80%,
+    transparent 100%);
+  animation: computeBarSlide 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Small label sits in the top-right corner of the viewport */
+#compute-bar::after {
+  content: 'computing mesh';
+  position: absolute;
+  top: 6px; right: 10px;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--surface-accent);
+  opacity: 0.55;
+}
+
+@keyframes computeBarSlide {
+  0%   { left: -60%; }
+  100% { left: 100%; }
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 3px; }
