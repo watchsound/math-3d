@@ -9,17 +9,33 @@ Cayley, Clebsch, Dupin, …). Normals come from analytic gradients. Gaussian
 and mean curvature are computed pointwise from the symbolic Hessian — no
 faked data, no decorative approximation.
 
-## Quick start
+## Installation
+
+**Prerequisites:** [Node.js 18+](https://nodejs.org/) and npm (bundled with Node).
 
 ```bash
+# 1. Clone the repository
+git clone https://github.com/watchsound/math-3d.git
+cd math-3d
+
+# 2. Install dependencies
 npm install
-npm run dev          # opens at http://127.0.0.1:5173
-npm test             # runs vitest unit + integration suite
-npm run build        # production bundle in dist/
+
+# 3. Start the development server
+npm run dev
 ```
 
-Requires Node 18+. The dev server uses Vite 6 with native Web Workers and
-GLSL imports.
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173) in your browser. The page hot-reloads on save.
+
+### Other commands
+
+```bash
+npm test             # run the vitest unit + integration suite
+npm run build        # production bundle → dist/
+npm run preview      # preview the production build locally
+```
+
+The dev server uses Vite 6 with native ES modules, Web Workers, and GLSL imports — no additional tooling required.
 
 ---
 
