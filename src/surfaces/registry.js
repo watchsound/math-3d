@@ -451,4 +451,43 @@ export const categories = {
   singular: 'Singular Algebraic Surfaces',
   topology: 'Fiber Bundles & Topology',
   classical: 'Classical Surfaces',
+  custom: 'Custom',
 };
+
+// ── Custom surface persistence ────────────────────────────────────────────
+
+const _STORAGE_KEY = 'topology-lab-custom';
+
+function _loadStored() {
+  try { return JSON.parse(localStorage.getItem(_STORAGE_KEY) ?? '[]'); }
+  catch { return []; }
+}
+
+function _persist(list) {
+  try { localStorage.setItem(_STORAGE_KEY, JSON.stringify(list)); } catch {}
+}
+
+// Merge any previously-saved custom surfaces into the live collections.
+for (const s of _loadStored()) {
+  surfaces.push(s);
+  surfaceById.set(s.id, s);
+}
+
+export function addCustomSurface(def) {
+  surfaces.push(def);
+  surfaceById.set(def.id, def);
+  const list = _loadStored();
+  list.push(def);
+  _persist(list);
+}
+
+export function removeCustomSurface(id) {
+  const i = surfaces.findIndex((s) => s.id === id);
+  if (i !== -1) surfaces.splice(i, 1);
+  surfaceById.delete(id);
+  _persist(_loadStored().filter((s) => s.id !== id));
+}
+
+export function isCustomSurface(id) {
+  return _loadStored().some((s) => s.id === id);
+}

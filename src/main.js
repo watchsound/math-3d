@@ -3,10 +3,12 @@ import './styles/main.css';
 import { createViewport } from './scene/viewport.js';
 import { MeshClient } from './scene/meshClient.js';
 import { buildSurfaceMesh, disposeSurfaceMesh } from './scene/surfaceMesh.js';
-import { surfaces, surfaceById } from './surfaces/registry.js';
+import { surfaces, surfaceById, categories, addCustomSurface, removeCustomSurface } from './surfaces/registry.js';
 import { mountLeftPanel } from './ui/leftPanel.js';
 import { mountRightPanel } from './ui/rightPanel.js';
+import { createAddSurfaceModal } from './ui/addSurfaceModal.js';
 import { mountControls } from './ui/controls.js';
+import { animate } from 'animejs';
 import { tickAnime, animateSurfaceIn } from './ui/transitions.js';
 import { ParticleTransition, sampleMeshPositions, PARTICLE_COUNT } from './scene/particleTransition.js';
 
@@ -33,7 +35,24 @@ let pendingOldPositions = null;      // sampled from old mesh before it's dispos
 const leftPanel = mountLeftPanel(leftRoot);
 const rightPanel = mountRightPanel(rightRoot, {
   onSelect: (surfaceId) => switchSurface(surfaceId),
+  onDelete: (surfaceId) => {
+    removeCustomSurface(surfaceId);
+    rightPanel.renderList();
+    // If we deleted the active surface, fall back to gyroid
+    if (currentSurfaceId === surfaceId) switchSurface('gyroid');
+  },
+  onOpenAdd: () => addModal.open(),
 });
+
+const addModal = createAddSurfaceModal({
+  categories,
+  onAdd: (def) => {
+    addCustomSurface(def);
+    rightPanel.renderList();
+    switchSurface(def.id);
+  },
+});
+
 const controls = mountControls(controlsRoot, {
   onChange: (state) => {
     // We re-request the mesh on any state change other than pure curvature
@@ -127,27 +146,42 @@ async function requestMesh() {
   applyCurvatureUniforms(state.curvature, mesh);
 
   if (isSurfaceSwitch && pendingOldPositions) {
-    // ── Particle morph transition ──────────────────────────────────────────
-    // Abort any stale transition from rapid switching.
+    // ── Particle morph: disintegrate → cloud → reassemble ─────────────────
     if (activeParticleTransition) {
       viewport.scene.remove(activeParticleTransition.points);
       activeParticleTransition.dispose();
       activeParticleTransition = null;
     }
 
-    // Old mesh is still in the viewport — dispose it now that we have the new one.
-    const old = viewport.getMesh();
-    if (old) disposeSurfaceMesh(old);
+    // Old mesh is still alive in the viewport.  We take it out of viewport's
+    // management but keep it in the scene so we can fade it out ourselves.
+    const oldMesh = viewport.getMesh();
+    viewport.setMesh(null); // clears viewport ref + removes from scene
+    if (oldMesh) {
+      viewport.scene.add(oldMesh); // manually re-add for the fade-out
+      oldMesh.material.transparent = true;
+      // Fade old mesh to zero WHILE particles are emerging — this is the
+      // "mesh dissolves into particles" effect.
+      animate(oldMesh, {
+        uOpacity:   0,
+        duration:   900,
+        ease:       'outCubic',
+        onComplete: () => {
+          viewport.scene.remove(oldMesh);
+          disposeSurfaceMesh(oldMesh);
+        },
+      });
+    }
+
+    // New mesh starts hidden; particles run in front of it.
+    viewport.setMesh(mesh);
+    mesh.material.uniforms.uOpacity.value = 0;
+    mesh.material.transparent = true;
 
     const newPositions = sampleMeshPositions(mesh, PARTICLE_COUNT);
     const pt = new ParticleTransition(pendingOldPositions, newPositions, surface.palette);
     pendingOldPositions = null;
     activeParticleTransition = pt;
-
-    // New mesh is hidden (opacity 0) behind the particle cloud.
-    viewport.setMesh(mesh);
-    mesh.material.uniforms.uOpacity.value = 0;
-    mesh.material.transparent = true;
     viewport.scene.add(pt.points);
 
     pt.start().then(() => {
@@ -155,7 +189,7 @@ async function requestMesh() {
       pt.dispose();
       if (activeParticleTransition === pt) {
         activeParticleTransition = null;
-        animateSurfaceIn(mesh);
+        animateSurfaceIn(mesh); // new mesh materialises
       }
     });
   } else {
@@ -163,7 +197,7 @@ async function requestMesh() {
     const old = viewport.getMesh();
     if (old) disposeSurfaceMesh(old);
     viewport.setMesh(mesh);
-    if (isSurfaceSwitch) animateSurfaceIn(mesh); // first-ever load
+    if (isSurfaceSwitch) animateSurfaceIn(mesh);
   }
 
   rightPanel.update({

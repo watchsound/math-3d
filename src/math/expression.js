@@ -137,3 +137,11 @@ function collectSymbolNames(node) {
   });
   return names;
 }
+
+export function expressionToLatex(expression) {
+  try {
+    return math.parse(expression).toTex({ parenthesis: 'auto' });
+  } catch {
+    return expression;
+  }
+}

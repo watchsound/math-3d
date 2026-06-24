@@ -7,19 +7,16 @@ export const PARTICLE_COUNT = 6000;
 
 const VERT = /* glsl */`
 attribute vec3  aEnd;
-attribute float aRand;   // per-particle [0,1] uniform random
+attribute float aRand;
 uniform float   uProgress;
 uniform float   uTime;
-
-#define PI 3.14159265358979
+uniform float   uPixelRatio;   // window.devicePixelRatio, for consistent apparent size
 
 void main() {
-  // scatter: 0→1 over first half  (sin arc: explode out, contract back)
-  // morph:   0→1 over second half (flow from old shape to new shape)
   float scatter = smoothstep(0.0, 0.5, uProgress);
   float morph   = smoothstep(0.5, 1.0, uProgress);
 
-  // Scatter direction: radially outward from origin, randomised per particle
+  // Radially outward scatter direction, randomised per particle.
   vec3 bDir = (length(position) > 1e-3)
     ? normalize(position)
     : vec3(0.0, 1.0, 0.0);
@@ -29,54 +26,70 @@ void main() {
     sin(aRand * 6.17 - 0.70)
   )));
 
-  // sin arc: burst peaks at scatter = 0.5, returns to 0 at scatter = 1
-  float burst    = sin(scatter * PI) * (0.55 + aRand * 0.50);
+  // Phase 1: burst outward — stays scattered once scatter = 1.
+  float burst    = scatter * (0.65 + aRand * 0.55);
   vec3 scattered = position + bDir * burst;
 
-  // Organic turbulent swirl during the scatter arc
-  float swirl = sin(scatter * PI) * 0.075;
-  scattered += swirl * vec3(
-    sin(aRand * 13.7 + uTime * 2.10),
-    cos(aRand * 11.3 + uTime * 1.75),
-    sin(aRand *  9.9 + uTime * 2.50)
+  // Organic turbulence peaks at scatter = 0.5.
+  float turb = scatter * (1.0 - scatter) * 4.0 * 0.14;
+  scattered += turb * vec3(
+    sin(aRand * 13.7 + uTime * 2.1),
+    cos(aRand * 11.3 + uTime * 1.7),
+    sin(aRand *  9.9 + uTime * 2.5)
   );
 
-  // After scatter collapses back to old shape, flow linearly to new shape
+  // Phase 2: converge from scattered cloud to new-mesh positions.
   vec3 pos = mix(scattered, aEnd, morph);
 
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
-  gl_Position    = projectionMatrix * mv;
-  gl_PointSize   = clamp(40.0 / -mv.z, 0.8, 5.5);
+  gl_Position = projectionMatrix * mv;
+
+  // Point size in device pixels → consistent apparent CSS size on any DPR.
+  gl_PointSize = clamp(110.0 / -mv.z, 2.5, 20.0) * uPixelRatio;
 }
 `;
+
+// Procedural particle texture:
+//   • soft exponential glow  (hot ember core)
+//   • 4-spike diffraction cross  (sci-fi crystal sparkle)
+//   • palette-coloured halo
 
 const FRAG = /* glsl */`
 uniform vec3  uColorMid;
 uniform vec3  uColorEdge;
 uniform float uProgress;
 
-#define PI 3.14159265358979
-
 void main() {
   vec2  uv = gl_PointCoord - 0.5;
   float r  = length(uv);
   if (r > 0.5) discard;
 
-  float soft       = 1.0 - smoothstep(0.10, 0.50, r);
-  float visibility = sin(uProgress * PI);       // fade in → peak → fade out
-  float alpha      = soft * visibility * 0.88;
+  // ── Core + halo glow ───────────────────────────────────────────────
+  float core = exp(-r * r * 24.0);        // tight bright center
+  float halo = exp(-r * r * 6.0) * 0.55; // wide soft bloom
 
-  vec3 col = mix(uColorMid, uColorEdge, smoothstep(0.0, 0.35, r));
-  gl_FragColor = vec4(col, alpha);
+  // ── 4-spike diffraction cross ──────────────────────────────────────
+  // Each arm is a narrow ridge along x=0 or y=0, clipped to the disc.
+  float armX  = pow(max(0.0, 1.0 - abs(uv.x) * 12.0), 2.5);
+  float armY  = pow(max(0.0, 1.0 - abs(uv.y) * 12.0), 2.5);
+  float cross = (armX + armY) * max(0.0, 1.0 - r * 2.1) * 0.32;
+
+  float brightness = core + halo + cross;
+
+  // ── Colour: white core → palette mid → palette edge ────────────────
+  vec3 col = mix(vec3(0.92, 0.96, 1.00), uColorMid,  smoothstep(0.00, 0.18, r));
+  col      = mix(col,                     uColorEdge,  smoothstep(0.18, 0.46, r));
+
+  // ── Fade in/out envelope ───────────────────────────────────────────
+  float fadeIn  = smoothstep(0.00, 0.18, uProgress);
+  float fadeOut = 1.0 - smoothstep(0.82, 1.00, uProgress);
+
+  gl_FragColor = vec4(col, brightness * fadeIn * fadeOut);
 }
 `;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/**
- * Evenly subsample (or repeat) n vertices from a mesh into a Float32Array[n*3].
- * Positions are in the mesh's local space (= world space, since meshes sit at origin).
- */
 export function sampleMeshPositions(mesh, n) {
   const src   = mesh.geometry.attributes.position.array;
   const total = src.length / 3;
@@ -93,11 +106,6 @@ export function sampleMeshPositions(mesh, n) {
 // ── ParticleTransition ────────────────────────────────────────────────────────
 
 export class ParticleTransition {
-  /**
-   * @param {Float32Array} startPositions  PARTICLE_COUNT * 3 floats (old mesh)
-   * @param {Float32Array} endPositions    PARTICLE_COUNT * 3 floats (new mesh)
-   * @param {{ mid: string, edge: string }} palette
-   */
   constructor(startPositions, endPositions, palette) {
     const rand = new Float32Array(PARTICLE_COUNT);
     for (let i = 0; i < PARTICLE_COUNT; i++) rand[i] = Math.random();
@@ -111,10 +119,11 @@ export class ParticleTransition {
       vertexShader:   VERT,
       fragmentShader: FRAG,
       uniforms: {
-        uProgress:  { value: 0.0 },
-        uTime:      { value: 0.0 },
-        uColorMid:  { value: new THREE.Color(palette.mid) },
-        uColorEdge: { value: new THREE.Color(palette.edge) },
+        uProgress:   { value: 0.0 },
+        uTime:       { value: 0.0 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+        uColorMid:   { value: new THREE.Color(palette.mid) },
+        uColorEdge:  { value: new THREE.Color(palette.edge) },
       },
       transparent: true,
       depthWrite:  false,
@@ -126,22 +135,17 @@ export class ParticleTransition {
     this._geo   = geo;
   }
 
-  /**
-   * Begin the scatter → morph animation.
-   * Returns a Promise that resolves when the 1 800 ms sequence completes.
-   */
   start() {
     return new Promise((resolve) => {
       animate(this._mat.uniforms.uProgress, {
         value:      1.0,
-        duration:   1800,
+        duration:   2000,
         ease:       'linear',
         onComplete: resolve,
       });
     });
   }
 
-  /** Call each frame with elapsed seconds to drive the turbulence clock. */
   tick(timeSec) {
     this._mat.uniforms.uTime.value = timeSec;
   }
